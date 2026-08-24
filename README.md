@@ -17,12 +17,30 @@ CoffeeBean 支付模块：基于 Unity IAP 5.4 的内购统一封装。
 }
 ```
 
-## 快速开始（配置管线，v0.1）
+## 快速开始（运行时）
 
-1. 打开 `Window > CoffeeBean > Purchase Config`
-2. 点击「选择...」选取商品 Excel 表（列名见下方规范）→ 校验通过自动弹窗
-3. 点击「重新生成配置」→ 生成 `Assets/Resources/CoffeeBean/IapConfig.asset`（+ .json 旁证）
-4. 打包时自动重新解析；解析失败会中止打包并弹窗
+```csharp
+using CoffeeBean.Purchase;
+
+// 1. 初始化（config 由 Excel 生成；verifier 可选）
+var service = IapService.Instance;
+service.Initialize(config, serverVerifier /* IPurchaseVerifier 可选 */);
+service.OnInitialized += () => Debug.Log("商品已下发");
+service.OnPurchaseSucceeded += order => GrantItem(order.InternalId); // 发货
+
+// 2. 查询商品（通过内部 ID 或平台 ID）
+IapProduct p = service.GetProduct("gem_100");              // 内部 ID
+IapProduct g = service.GetProductByGoogleId("com.xxx.gem"); // Google ID
+IapProduct a = service.GetProductByAppleId("com.xxx.ios");  // Apple ID
+Debug.Log($"价格: {p.LocalizedPriceString} 货币: {p.CurrencyCode}");
+
+// 3. 购买 / 恢复购买
+service.Purchase("gem_100");   // 服务器核销开启时自动走 IPurchaseVerifier，Pending 未确认自动补发
+service.RestorePurchases();
+```
+
+> 无服务器时 `serverVerifier` 传 null 且关闭 `IapConfig.serverVerifyEnabled`，购买直接完成。
+> 服务器核销开启时，未确认的购买保持 Pending，崩溃/断网后下次启动 `FetchPurchases` 自动补发。
 
 ## Excel 列规范
 

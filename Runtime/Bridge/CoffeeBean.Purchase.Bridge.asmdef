@@ -1,22 +1,19 @@
 {
-  "name": "CoffeeBean.Purchase",
+  "name": "CoffeeBean.Purchase.Bridge",
   "rootNamespace": "CoffeeBean.Purchase",
   "references": [
-    "Unity.Purchasing"
+    "CoffeeBean.Purchase",
+    "CoffeeBean.Core"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
   "precompiledReferences": [],
-  "autoReferenced": true,
-  "defineConstraints": [],
-  "versionDefines": [
-    {
-      "name": "com.coffeebean.core",
-      "expression": "",
-      "define": "COFFEEBEAN_CORE"
-    }
+  "autoReferenced": false,
+  "defineConstraints": [
+    "COFFEEBEAN_CORE"
   ],
+  "versionDefines": [],
   "noEngineReferences": false
 }
