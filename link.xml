@@ -1,0 +1,4 @@
+<linker>
+  <!-- 保留运行时程序集与 Unity IAP，确保 IL2CPP 裁剪后仍可用 -->
+  <assembly fullname="CoffeeBean.Purchase" preserve="all"/>
+</linker>

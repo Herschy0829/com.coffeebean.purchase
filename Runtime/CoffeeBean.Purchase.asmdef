@@ -1,0 +1,20 @@
+{
+  "name": "CoffeeBean.Purchase",
+  "rootNamespace": "CoffeeBean.Purchase",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [
+    {
+      "name": "com.coffeebean.core",
+      "expression": "",
+      "define": "COFFEEBEAN_CORE"
+    }
+  ],
+  "noEngineReferences": false
+}

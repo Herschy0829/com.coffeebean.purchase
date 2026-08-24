@@ -1,0 +1,22 @@
+{
+  "name": "CoffeeBean.Purchase.Tests",
+  "rootNamespace": "CoffeeBean.Purchase.Tests",
+  "references": [
+    "CoffeeBean.Purchase",
+    "CoffeeBean.Purchase.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}
