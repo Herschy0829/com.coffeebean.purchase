@@ -63,7 +63,7 @@ service.RestorePurchases();
 ## 依赖
 
 - `com.unity.purchasing` 5.4.x（Unity IAP）
-- NPOI 2.6.2（Editor-only，Excel 解析，见 `Editor/NPOI/`）
+- MiniExcel 1.46（Editor-only，Excel 解析，`Editor/MiniExcel/`，约 490KB / 4 个 DLL；仅支持 `.xlsx`）
 
 ## License
 

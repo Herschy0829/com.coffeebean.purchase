@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.1] - 2025-xx-xx
+
+### Changed
+- Excel 解析从 NPOI（13 个 DLL / 17MB）换成 **MiniExcel 1.46**（4 个 DLL / ~490KB，Editor-only）
+- 注意：MiniExcel 仅支持 `.xlsx`，不支持旧版 `.xls`（如需要可切 ExcelDataReader）
+
 ## [0.1.0] - 2025-xx-xx
 
 ### Added

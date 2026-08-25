@@ -2,15 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using CoffeeBean.Purchase;
-using NPOI.HSSF.UserModel;
-using NPOI.SS.UserModel;
-using NPOI.XSSF.UserModel;
+using MiniExcelLibs;
 using UnityEngine;
 
 namespace CoffeeBean.Purchase.EditorTools
 {
     /// <summary>
-    /// Excel 商品表解析与校验（NPOI）。
+    /// Excel 商品表解析与校验（MiniExcel，轻量只读）。
     /// 列名规范：字段名 + 类型后缀（Id_s / GoogleProductId_s / AppleProductId_s / ConsumeType_i / ...），
     /// 详见设计文档 design-iap.md §3。解析失败 / 校验失败均以错误列表形式返回，由调用方弹窗。
     /// </summary>
@@ -47,7 +45,7 @@ namespace CoffeeBean.Purchase.EditorTools
         private const string ColVerify = "Verify_i";
         private const string ColExtra = "Extra_s";
 
-        /// <summary>解析 Excel 文件。路径不存在 / 文件损坏时返回带错误的结果（不抛异常）。</summary>
+        /// <summary>解析 Excel 文件（.xlsx）。路径不存在 / 文件损坏时返回带错误的结果（不抛异常）。</summary>
         public static ImportResult Import(string excelPath)
         {
             var result = new ImportResult { SourcePath = excelPath };
@@ -57,37 +55,27 @@ namespace CoffeeBean.Purchase.EditorTools
                 return result;
             }
 
-            IWorkbook workbook = null;
             try
             {
-                using (var fs = new FileStream(excelPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                {
-                    workbook = excelPath.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)
-                        ? (IWorkbook)new HSSFWorkbook(fs)
-                        : (IWorkbook)new XSSFWorkbook(fs);
-                }
+                // useHeaderRow:false → 每行是 IDictionary<string,object>，键为列字母（A/B/C...）
+                var rows = new List<IDictionary<string, object>>();
+                foreach (dynamic row in MiniExcel.Query(excelPath, useHeaderRow: false))
+                    rows.Add((IDictionary<string, object>)row);
 
-                ISheet sheet = workbook.GetSheetAt(0);
-                if (sheet == null)
+                if (rows.Count == 0)
                 {
-                    result.Errors.Add(new ImportError { Row = 0, Column = "-", Message = "工作簿中没有工作表" });
+                    result.Errors.Add(new ImportError { Row = 0, Column = "-", Message = "Excel 工作表为空" });
                     return result;
                 }
 
-                // 表头
-                IRow headerRow = sheet.GetRow(sheet.FirstRowNum);
-                if (headerRow == null)
-                {
-                    result.Errors.Add(new ImportError { Row = 0, Column = "-", Message = "第 1 行必须是表头（列名）" });
-                    return result;
-                }
-
+                // 表头 = 第一行（列字母 → 列名映射，列名去空格、大小写不敏感）
+                var headerRow = rows[0];
                 var columnIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                for (int c = headerRow.FirstCellNum; c < headerRow.LastCellNum; c++)
+                int maxCol = headerRow.Count;
+                for (int c = 0; c < maxCol; c++)
                 {
-                    string name = GetCellText(headerRow.GetCell(c));
+                    string name = ToText(GetCell(headerRow, c)).Trim();
                     if (string.IsNullOrEmpty(name)) continue;
-                    name = name.Trim();
                     if (!columnIndex.ContainsKey(name)) columnIndex[name] = c;
                 }
 
@@ -99,32 +87,30 @@ namespace CoffeeBean.Purchase.EditorTools
                 }
                 if (result.Errors.Count > 0) return result;
 
-                // 数据行
+                // 数据行（第 2 行起，Excel 行号 = 行索引 + 1）
                 var productRows = new List<int>();
-                for (int r = sheet.FirstRowNum + 1; r <= sheet.LastRowNum; r++)
+                for (int r = 1; r < rows.Count; r++)
                 {
-                    IRow row = sheet.GetRow(r);
-                    if (row == null) continue;
-                    // 整行为空则跳过
+                    var row = rows[r];
+                    int rowNumber = r + 1;
                     if (IsRowEmpty(row)) continue;
 
                     var def = new IapProductDefinition();
                     int errorStart = result.Errors.Count;
-                    int rowNumber = r + 1;
 
-                    def.internalId = GetCellText(GetCell(row, columnIndex, ColInternalId)).Trim();
-                    def.googleProductId = GetCellText(GetCell(row, columnIndex, ColGoogleId)).Trim();
-                    def.appleProductId = GetCellText(GetCell(row, columnIndex, ColAppleId)).Trim();
-                    def.consumeType = ParseConsumeType(GetCellText(GetCell(row, columnIndex, ColConsumeType)), result, rowNumber);
-                    def.title = GetCellText(GetCell(row, columnIndex, ColTitle)).Trim();
-                    def.description = GetCellText(GetCell(row, columnIndex, ColDescription)).Trim();
-                    def.priceAnchor = ParseFloat(GetCellText(GetCell(row, columnIndex, ColPrice)), result, rowNumber, ColPrice, "价格锚点必须为 >= 0 的数字");
-                    def.currency = GetCellText(GetCell(row, columnIndex, ColCurrency)).Trim();
-                    def.enabled = ParseEnabled(GetCellText(GetCell(row, columnIndex, ColEnabled)), result, rowNumber);
-                    def.group = GetCellText(GetCell(row, columnIndex, ColGroup)).Trim();
-                    def.sortOrder = (int)ParseFloat(GetCellText(GetCell(row, columnIndex, ColSortOrder)), result, rowNumber, ColSortOrder, "排序必须为整数");
-                    def.serverVerifyOverride = (int)ParseVerify(GetCellText(GetCell(row, columnIndex, ColVerify)), result, rowNumber);
-                    def.extra = GetCellText(GetCell(row, columnIndex, ColExtra)).Trim();
+                    def.internalId = ToText(GetCell(row, columnIndex[ColInternalId])).Trim();
+                    def.googleProductId = ToText(GetCell(row, columnIndex[ColGoogleId])).Trim();
+                    def.appleProductId = ToText(GetCell(row, columnIndex[ColAppleId])).Trim();
+                    def.consumeType = ParseConsumeType(ToText(GetCell(row, columnIndex[ColConsumeType])), result, rowNumber);
+                    def.title = ToText(GetCell(row, columnIndex, ColTitle)).Trim();
+                    def.description = ToText(GetCell(row, columnIndex, ColDescription)).Trim();
+                    def.priceAnchor = ParseFloat(ToText(GetCell(row, columnIndex, ColPrice)), result, rowNumber, ColPrice, "价格锚点必须为 >= 0 的数字");
+                    def.currency = ToText(GetCell(row, columnIndex, ColCurrency)).Trim();
+                    def.enabled = ParseEnabled(ToText(GetCell(row, columnIndex, ColEnabled)), result, rowNumber);
+                    def.group = ToText(GetCell(row, columnIndex, ColGroup)).Trim();
+                    def.sortOrder = (int)ParseFloat(ToText(GetCell(row, columnIndex, ColSortOrder)), result, rowNumber, ColSortOrder, "排序必须为整数");
+                    def.serverVerifyOverride = (int)ParseVerify(ToText(GetCell(row, columnIndex, ColVerify)), result, rowNumber);
+                    def.extra = ToText(GetCell(row, columnIndex, ColExtra)).Trim();
 
                     // 必填
                     if (string.IsNullOrEmpty(def.internalId))
@@ -159,51 +145,68 @@ namespace CoffeeBean.Purchase.EditorTools
                 result.Errors.Add(new ImportError { Row = 0, Column = "-", Message = "Excel 解析失败: " + e.Message });
                 return result;
             }
-            finally
-            {
-                if (workbook != null) workbook.Close();
-            }
         }
 
-        private static ICell GetCell(IRow row, Dictionary<string, int> columnIndex, string column)
+        // ===== 单元格读取 =====
+
+        private static object GetCell(IDictionary<string, object> row, Dictionary<string, int> columnIndex, string column)
         {
             if (!columnIndex.TryGetValue(column, out int index)) return null;
-            return row.GetCell(index);
+            return GetCell(row, index);
         }
 
-        private static string GetCellText(ICell cell)
+        private static object GetCell(IDictionary<string, object> row, int index)
         {
-            if (cell == null) return string.Empty;
-            switch (cell.CellType)
+            // MiniExcel useHeaderRow:false 时键为列字母
+            string key = ColumnLetter(index);
+            return row.TryGetValue(key, out object v) ? v : null;
+        }
+
+        private static string ColumnLetter(int index)
+        {
+            string s = string.Empty;
+            int n = index;
+            while (n >= 0)
             {
-                case CellType.String: return cell.StringCellValue ?? string.Empty;
-                case CellType.Numeric:
-                    double v = cell.NumericCellValue;
-                    return v == Math.Floor(v) ? ((long)v).ToString() : v.ToString("R");
-                case CellType.Boolean: return cell.BooleanCellValue ? "1" : "0";
-                case CellType.Formula:
-                    try
-                    {
-                        switch (cell.CachedFormulaResultType)
-                        {
-                            case CellType.String: return cell.StringCellValue ?? string.Empty;
-                            case CellType.Numeric: return cell.NumericCellValue.ToString("R");
-                            default: return string.Empty;
-                        }
-                    }
-                    catch { return string.Empty; }
-                default: return string.Empty;
+                s = (char)('A' + (n % 26)) + s;
+                n = n / 26 - 1;
+            }
+            return s;
+        }
+
+        private static string ToText(object value)
+        {
+            switch (value)
+            {
+                case null: return string.Empty;
+                case string s: return s;
+                case bool b: return b ? "1" : "0";
+                case double d: return IsIntegral(d) ? ((long)d).ToString() : d.ToString("R");
+                case float f: return IsIntegral(f) ? ((long)f).ToString() : f.ToString("R");
+                case decimal m: return IsIntegral(m) ? ((long)m).ToString() : m.ToString();
+                case int i: return i.ToString();
+                case long l: return l.ToString();
+                case DateTime dt: return dt.ToString("yyyy-MM-dd HH:mm:ss");
+                default: return value.ToString() ?? string.Empty;
             }
         }
 
-        private static bool IsRowEmpty(IRow row)
+        private static bool IsIntegral(double d) => d == Math.Floor(d) && Math.Abs(d) < 9.2e18;
+
+        private static bool IsIntegral(float f) => f == Math.Floor(f) && Math.Abs(f) < 9.2e18;
+
+        private static bool IsIntegral(decimal m) => m == Math.Floor(m);
+
+        private static bool IsRowEmpty(IDictionary<string, object> row)
         {
-            for (int c = row.FirstCellNum; c < row.LastCellNum; c++)
+            foreach (var kv in row)
             {
-                if (!string.IsNullOrEmpty(GetCellText(row.GetCell(c)))) return false;
+                if (kv.Value != null && ToText(kv.Value).Length > 0) return false;
             }
             return true;
         }
+
+        // ===== 字段解析（与 NPOI 版一致）=====
 
         private static IapConsumeType ParseConsumeType(string text, ImportResult result, int row)
         {
@@ -271,7 +274,6 @@ namespace CoffeeBean.Purchase.EditorTools
                 if (dup) removeAt.Add(i);
             }
 
-            // 移除重复行（保留首次出现），倒序删除避免索引错乱
             for (int i = removeAt.Count - 1; i >= 0; i--)
             {
                 result.Products.RemoveAt(removeAt[i]);
@@ -279,7 +281,6 @@ namespace CoffeeBean.Purchase.EditorTools
             }
         }
 
-        /// <summary>返回 true 表示该值重复（重复行会被移出商品列表）。</summary>
         private static bool CheckOne(string value, int row, string column, Dictionary<string, int> seen,
             ImportResult result, string message)
         {
@@ -307,7 +308,6 @@ namespace CoffeeBean.Purchase.EditorTools
 
         private static bool IsJson(string s)
         {
-            // JsonUtility 能解析任意合法 JSON 对象（未知字段自动忽略），非法 JSON 抛异常
             try { JsonUtility.FromJson<JsonProbe>(s); return true; }
             catch { return false; }
         }
