@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.6] - 2025-xx-xx
+
+### Changed
+- **Excel 解析迁移到 excel 模块**：`ExcelImporter` 读取层（MiniExcel / 表头检测 / 列名别名归一 / 空行与 # 注释行跳过 / 问题分级）
+  重构为基于 `com.coffeebean.excel` 的 `CExcelReader`；本模块只保留 IAP 特有校验
+  （ConsumeType/IapType 映射、价格宽松解析、商店 ID 校验、货币/JSON 校验、重复检测）
+- 新增依赖 `com.coffeebean.excel`（0.1.0）
+- 行为不变：表头检测、列别名、警告分级、必填列校验与 v0.1.5 一致
+
 ## [0.1.5] - 2025-xx-xx
 
 ### Fixed

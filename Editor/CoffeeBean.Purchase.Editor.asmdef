@@ -2,7 +2,8 @@
   "name": "CoffeeBean.Purchase.Editor",
   "rootNamespace": "CoffeeBean.Purchase.EditorTools",
   "references": [
-    "CoffeeBean.Purchase"
+    "CoffeeBean.Purchase",
+    "CoffeeBean.Excel.Editor"
   ],
   "includePlatforms": [
     "Editor"

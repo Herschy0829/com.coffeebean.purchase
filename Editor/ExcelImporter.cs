@@ -1,17 +1,17 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Text.RegularExpressions;
+using CoffeeBean.Excel;
 using CoffeeBean.Purchase;
-using MiniExcelLibs;
-using UnityEngine;
 
 namespace CoffeeBean.Purchase.EditorTools
 {
     /// <summary>
-    /// Excel 商品表解析与校验（MiniExcel，轻量只读）。
-    /// 列名规范：字段名 + 类型后缀（Id_s / GoogleProductId_s / AppleProductId_s / ConsumeType_i / ...），
-    /// 详见设计文档 design-iap.md §3。解析失败 / 校验失败均以错误列表形式返回，由调用方弹窗。
+    /// Excel 商品表解析与校验。
+    /// v0.1.6 起读取层（MiniExcel / 表头检测 / 列名归一 / 单元格读取）迁移到 excel 模块
+    /// （<see cref="CExcelReader"/>），本类只保留 IAP 特有逻辑：
+    /// ConsumeType/IapType 映射、价格宽松解析、商店 ID 校验、货币/JSON 校验、重复检测。
+    /// 列名规范：字段名 + 类型后缀（Id_s / GoogleProductId_s / ConsumeType_i / ...），详见 design-iap.md §3。
     /// </summary>
     public static class ExcelImporter
     {
@@ -81,255 +81,130 @@ namespace CoffeeBean.Purchase.EditorTools
         public static ImportResult Import(string excelPath)
         {
             var result = new ImportResult { SourcePath = excelPath };
-            if (string.IsNullOrEmpty(excelPath) || !File.Exists(excelPath))
-            {
-                result.Errors.Add(new ImportError { Row = 0, Column = "-", Message = "Excel 文件不存在: " + excelPath });
-                return result;
-            }
 
-            try
+            // 读取层：表头检测 / 列名归一（别名）/ 空行与 # 注释行跳过 / 问题分级 由 excel 模块完成
+            CExcelReadResult read = CExcelReader.Read(excelPath, new CExcelReadOptions
             {
-                // useHeaderRow:false → 每行是 IDictionary<string,object>，键为列字母（A/B/C...）
-                var rows = new List<IDictionary<string, object>>();
-                foreach (dynamic row in MiniExcel.Query(excelPath, useHeaderRow: false))
-                    rows.Add((IDictionary<string, object>)row);
-
-                if (rows.Count == 0)
+                ColumnAliases = ColumnAliases,
+            });
+            foreach (CExcelIssue issue in read.Issues)
+            {
+                result.Errors.Add(new ImportError
                 {
-                    result.Errors.Add(new ImportError { Row = 0, Column = "-", Message = "Excel 工作表为空" });
-                    return result;
+                    Row = issue.Row,
+                    Column = issue.Column,
+                    Message = issue.Message,
+                    IsWarning = issue.Level == CExcelIssueLevel.Warning,
+                });
+            }
+            if (result.HasBlockingErrors) return result;
+
+            // 校验必填列存在
+            var columnSet = new HashSet<string>(read.Columns, StringComparer.OrdinalIgnoreCase);
+            foreach (string required in new[] { ColInternalId, ColGoogleId, ColAppleId, ColConsumeType })
+            {
+                if (!columnSet.Contains(required))
+                    result.Errors.Add(new ImportError { Row = 0, Column = required, Message = "缺少必填列: " + required });
+            }
+            if (result.Errors.Count > 0) return result;
+
+            // 数据行（read.Rows 已跳过空行 / # 注释行；Excel 行号 = 表头行号 + 1 + 行索引）
+            var productRows = new List<int>();
+            for (int i = 0; i < read.Rows.Count; i++)
+            {
+                Dictionary<string, object> row = read.Rows[i];
+                int rowNumber = read.HeaderRowIndex + i + 2;
+
+                var def = new IapProductDefinition();
+                int errorStart = result.Errors.Count;
+
+                def.internalId = Cell(row, ColInternalId);
+                def.googleProductId = Cell(row, ColGoogleId);
+                def.appleProductId = Cell(row, ColAppleId);
+                // 商品类型：优先 IapType_i（显式商店类型 0/1/2），否则按 ConsumeType_i 映射
+                string explicitTypeText = Cell(row, ColIapType);
+                string consumeTypeText = Cell(row, ColConsumeType);
+                bool consumeTypeNumeric = int.TryParse(consumeTypeText, out _);
+
+                // 注释/说明行（如底部图例）：内部 ID 为空 且 类型列是非数字文本 → 警告跳过，不报错
+                if (string.IsNullOrEmpty(def.internalId) && !consumeTypeNumeric && string.IsNullOrEmpty(explicitTypeText))
+                {
+                    result.Errors.Add(new ImportError
+                    {
+                        Row = rowNumber,
+                        Column = ColConsumeType,
+                        Message = "类型列为非数字（疑似注释文本），该行视为注释行已跳过",
+                        IsWarning = true,
+                    });
+                }
+                else if (!string.IsNullOrEmpty(explicitTypeText))
+                {
+                    def.consumeType = ParseExplicitType(explicitTypeText, result, rowNumber);
+                }
+                else
+                {
+                    def.consumeType = ParseConsumeType(consumeTypeText, result, rowNumber);
+                }
+                def.title = Cell(row, ColTitle);
+                def.description = Cell(row, ColDescription);
+                def.priceAnchor = ParsePriceTolerant(Cell(row, ColPrice));
+                def.currency = Cell(row, ColCurrency);
+                def.enabled = ParseEnabled(Cell(row, ColEnabled), result, rowNumber);
+                def.group = Cell(row, ColGroup);
+                def.sortOrder = (int)ParseFloat(Cell(row, ColSortOrder), result, rowNumber, ColSortOrder, "排序必须为整数");
+                def.serverVerifyOverride = (int)ParseVerify(Cell(row, ColVerify), result, rowNumber);
+                def.extra = Cell(row, ColExtra);
+
+                // 内部商品 ID 为空 → 视为注释/空行，警告并跳过（不阻塞）
+                if (string.IsNullOrEmpty(def.internalId))
+                {
+                    result.Errors.Add(new ImportError
+                    {
+                        Row = rowNumber,
+                        Column = ColInternalId,
+                        Message = "内部商品 ID 为空，该行视为注释/占位，已跳过",
+                        IsWarning = true,
+                    });
                 }
 
-                // 表头检测：前 3 行中匹配已知列名最多的行（支持"中文说明行 + 字段名行"的双行表头）
-                int headerIndex = FindHeaderRow(rows);
-                var headerRow = rows[headerIndex];
-                // 逻辑字段名 → 列字母（MiniExcel useHeaderRow:false 时键为列字母）
-                var columnIndex = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                int maxCol = headerRow.Count;
-                for (int c = 0; c < maxCol; c++)
+                // Google/Apple 商店 ID 无效（空 / 占位符）→ 该商品不参与初始化，整行跳过（警告，不阻塞生成）
+                if (IsValidStoreId(def.googleProductId) == false || IsValidStoreId(def.appleProductId) == false)
                 {
-                    string name = ToText(GetCell(headerRow, c)).Trim();
-                    if (string.IsNullOrEmpty(name)) continue;
-                    foreach (KeyValuePair<string, string[]> kv in ColumnAliases)
+                    result.Errors.Add(new ImportError
                     {
-                        foreach (string alias in kv.Value)
-                        {
-                            if (string.Equals(name, alias, StringComparison.OrdinalIgnoreCase))
-                            {
-                                if (!columnIndex.ContainsKey(kv.Key))
-                                    columnIndex[kv.Key] = ColumnLetter(c);
-                                break;
-                            }
-                        }
-                    }
+                        Row = rowNumber,
+                        Column = ColGoogleId,
+                        Message = $"商店 ID 无效（Google:'{def.googleProductId}' Apple:'{def.appleProductId}'），该商品已跳过、不参与初始化",
+                        IsWarning = true,
+                    });
                 }
 
-                // 校验必填列存在
-                foreach (string required in new[] { ColInternalId, ColGoogleId, ColAppleId, ColConsumeType })
+                // 货币格式
+                if (!string.IsNullOrEmpty(def.currency) && !IsCurrencyCode(def.currency))
+                    result.Errors.Add(new ImportError { Row = rowNumber, Column = ColCurrency, Message = "货币代码必须是 3 位大写字母（如 USD/CNY），实际: " + def.currency });
+
+                // Extra 应为合法 JSON（警告级）
+                if (!string.IsNullOrEmpty(def.extra) && !IsJson(def.extra))
+                    result.Errors.Add(new ImportError { Row = rowNumber, Column = ColExtra, Message = "Extra 不是合法 JSON（忽略）", IsWarning = true });
+
+                if (result.Errors.Count == errorStart)
                 {
-                    if (!columnIndex.ContainsKey(required))
-                        result.Errors.Add(new ImportError { Row = 0, Column = required, Message = "缺少必填列: " + required });
-                }
-                if (result.Errors.Count > 0) return result;
-
-                // 数据行（表头之后，Excel 行号 = 行索引 + 1）
-                var productRows = new List<int>();
-                for (int r = headerIndex + 1; r < rows.Count; r++)
-                {
-                    var row = rows[r];
-                    int rowNumber = r + 1;
-                    if (IsRowEmpty(row)) continue;
-
-                    var def = new IapProductDefinition();
-                    int errorStart = result.Errors.Count;
-
-                    def.internalId = ToText(GetCell(row, columnIndex, ColInternalId)).Trim();
-                    def.googleProductId = ToText(GetCell(row, columnIndex, ColGoogleId)).Trim();
-                    def.appleProductId = ToText(GetCell(row, columnIndex, ColAppleId)).Trim();
-                    // 商品类型：优先 IapType_i（显式商店类型 0/1/2），否则按 ConsumeType_i 映射
-                    string explicitTypeText = ToText(GetCell(row, columnIndex, ColIapType)).Trim();
-                    string consumeTypeText = ToText(GetCell(row, columnIndex, ColConsumeType)).Trim();
-                    bool consumeTypeNumeric = int.TryParse(consumeTypeText, out _);
-
-                    // 注释/说明行（如底部图例）：内部 ID 为空 且 类型列是非数字文本 → 警告跳过，不报错
-                    if (string.IsNullOrEmpty(def.internalId) && !consumeTypeNumeric && string.IsNullOrEmpty(explicitTypeText))
-                    {
-                        result.Errors.Add(new ImportError
-                        {
-                            Row = rowNumber,
-                            Column = ColConsumeType,
-                            Message = "类型列为非数字（疑似注释文本），该行视为注释行已跳过",
-                            IsWarning = true,
-                        });
-                    }
-                    else if (!string.IsNullOrEmpty(explicitTypeText))
-                    {
-                        def.consumeType = ParseExplicitType(explicitTypeText, result, rowNumber);
-                    }
-                    else
-                    {
-                        def.consumeType = ParseConsumeType(consumeTypeText, result, rowNumber);
-                    }
-                    def.title = ToText(GetCell(row, columnIndex, ColTitle)).Trim();
-                    def.description = ToText(GetCell(row, columnIndex, ColDescription)).Trim();
-                    def.priceAnchor = ParsePriceTolerant(ToText(GetCell(row, columnIndex, ColPrice)));
-                    def.currency = ToText(GetCell(row, columnIndex, ColCurrency)).Trim();
-                    def.enabled = ParseEnabled(ToText(GetCell(row, columnIndex, ColEnabled)), result, rowNumber);
-                    def.group = ToText(GetCell(row, columnIndex, ColGroup)).Trim();
-                    def.sortOrder = (int)ParseFloat(ToText(GetCell(row, columnIndex, ColSortOrder)), result, rowNumber, ColSortOrder, "排序必须为整数");
-                    def.serverVerifyOverride = (int)ParseVerify(ToText(GetCell(row, columnIndex, ColVerify)), result, rowNumber);
-                    def.extra = ToText(GetCell(row, columnIndex, ColExtra)).Trim();
-
-                    // 内部商品 ID 为空 → 视为注释/空行，警告并跳过（不阻塞）
-                    if (string.IsNullOrEmpty(def.internalId))
-                    {
-                        result.Errors.Add(new ImportError
-                        {
-                            Row = rowNumber,
-                            Column = ColInternalId,
-                            Message = "内部商品 ID 为空，该行视为注释/占位，已跳过",
-                            IsWarning = true,
-                        });
-                    }
-
-                    // Google/Apple 商店 ID 无效（空 / 占位符）→ 该商品不参与初始化，整行跳过（警告，不阻塞生成）
-                    if (IsValidStoreId(def.googleProductId) == false || IsValidStoreId(def.appleProductId) == false)
-                    {
-                        result.Errors.Add(new ImportError
-                        {
-                            Row = rowNumber,
-                            Column = ColGoogleId,
-                            Message = $"商店 ID 无效（Google:'{def.googleProductId}' Apple:'{def.appleProductId}'），该商品已跳过、不参与初始化",
-                            IsWarning = true,
-                        });
-                    }
-
-                    // 货币格式
-                    if (!string.IsNullOrEmpty(def.currency) && !IsCurrencyCode(def.currency))
-                        result.Errors.Add(new ImportError { Row = rowNumber, Column = ColCurrency, Message = "货币代码必须是 3 位大写字母（如 USD/CNY），实际: " + def.currency });
-
-                    // Extra 应为合法 JSON（警告级）
-                    if (!string.IsNullOrEmpty(def.extra) && !IsJson(def.extra))
-                        result.Errors.Add(new ImportError { Row = rowNumber, Column = ColExtra, Message = "Extra 不是合法 JSON（忽略）", IsWarning = true });
-
-                    if (result.Errors.Count == errorStart)
-                    {
-                        result.Products.Add(def);
-                        productRows.Add(rowNumber);
-                    }
-                }
-
-                // 重复校验
-                CheckDuplicates(result, productRows);
-
-                return result;
-            }
-            catch (Exception e)
-            {
-                result.Errors.Add(new ImportError { Row = 0, Column = "-", Message = "Excel 解析失败: " + e.Message });
-                return result;
-            }
-        }
-
-        // ===== 表头检测 / 单元格读取 =====
-
-        /// <summary>在前 3 行中找到匹配已知列名最多的行作为表头（兼容双行表头）。找不到则用第 1 行。</summary>
-        private static int FindHeaderRow(List<IDictionary<string, object>> rows)
-        {
-            int best = 0;
-            int bestCount = -1;
-            int scan = Math.Min(rows.Count, 3);
-            for (int i = 0; i < scan; i++)
-            {
-                int count = CountHeaderMatches(rows[i]);
-                if (count > bestCount)
-                {
-                    bestCount = count;
-                    best = i;
+                    result.Products.Add(def);
+                    productRows.Add(rowNumber);
                 }
             }
-            return best;
+
+            // 重复校验
+            CheckDuplicates(result, productRows);
+
+            return result;
         }
 
-        private static int CountHeaderMatches(IDictionary<string, object> row)
-        {
-            // 只统计"规范列名"（每组别名中的第一个，如 GoogleProductId_s）——
-            // 字段名行优先于中文说明行，避免双行表头选错
-            int count = 0;
-            for (int c = 0; c < row.Count; c++)
-            {
-                string name = ToText(GetCell(row, c)).Trim();
-                if (string.IsNullOrEmpty(name)) continue;
-                foreach (KeyValuePair<string, string[]> kv in ColumnAliases)
-                {
-                    if (string.Equals(name, kv.Value[0], StringComparison.OrdinalIgnoreCase))
-                    {
-                        count++;
-                        break;
-                    }
-                }
-            }
-            return count;
-        }
+        /// <summary>按规范列名取单元格文本（trim 后）。</summary>
+        private static string Cell(Dictionary<string, object> row, string column)
+            => row.TryGetValue(column, out object v) ? CExcelValue.ToText(v).Trim() : string.Empty;
 
-        private static object GetCell(IDictionary<string, object> row, Dictionary<string, string> columnIndex, string column)
-        {
-            if (!columnIndex.TryGetValue(column, out string letter)) return null;
-            return row.TryGetValue(letter, out object v) ? v : null;
-        }
-
-        private static object GetCell(IDictionary<string, object> row, int index)
-        {
-            // MiniExcel useHeaderRow:false 时键为列字母
-            string key = ColumnLetter(index);
-            return row.TryGetValue(key, out object v) ? v : null;
-        }
-
-        private static string ColumnLetter(int index)
-        {
-            string s = string.Empty;
-            int n = index;
-            while (n >= 0)
-            {
-                s = (char)('A' + (n % 26)) + s;
-                n = n / 26 - 1;
-            }
-            return s;
-        }
-
-        private static string ToText(object value)
-        {
-            switch (value)
-            {
-                case null: return string.Empty;
-                case string s: return s;
-                case bool b: return b ? "1" : "0";
-                case double d: return IsIntegral(d) ? ((long)d).ToString() : d.ToString("R");
-                case float f: return IsIntegral(f) ? ((long)f).ToString() : f.ToString("R");
-                case decimal m: return IsIntegral(m) ? ((long)m).ToString() : m.ToString();
-                case int i: return i.ToString();
-                case long l: return l.ToString();
-                case DateTime dt: return dt.ToString("yyyy-MM-dd HH:mm:ss");
-                default: return value.ToString() ?? string.Empty;
-            }
-        }
-
-        private static bool IsIntegral(double d) => d == Math.Floor(d) && Math.Abs(d) < 9.2e18;
-
-        private static bool IsIntegral(float f) => f == Math.Floor(f) && Math.Abs(f) < 9.2e18;
-
-        private static bool IsIntegral(decimal m) => m == Math.Floor(m);
-
-        private static bool IsRowEmpty(IDictionary<string, object> row)
-        {
-            foreach (var kv in row)
-            {
-                if (kv.Value != null && ToText(kv.Value).Length > 0) return false;
-            }
-            return true;
-        }
-
-        // ===== 字段解析（与 NPOI 版一致）=====
+        // ===== 字段解析（IAP 特有，v0.1.6 保留） =====
 
         private static IapConsumeType ParseConsumeType(string text, ImportResult result, int row)
         {
@@ -464,7 +339,7 @@ namespace CoffeeBean.Purchase.EditorTools
 
         private static bool IsJson(string s)
         {
-            try { JsonUtility.FromJson<JsonProbe>(s); return true; }
+            try { UnityEngine.JsonUtility.FromJson<JsonProbe>(s); return true; }
             catch { return false; }
         }
     }
