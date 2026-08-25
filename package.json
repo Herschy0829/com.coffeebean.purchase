@@ -1,6 +1,6 @@
 {
   "name": "com.coffeebean.purchase",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "displayName": "CoffeeBean Purchase",
   "description": "Independent in-app purchase module based on Unity IAP 5.4. Excel-driven product config, optional server-side receipt verification, restore purchases. Works standalone or integrated with CoffeeBean Core.",
   "unity": "6000.0",
@@ -11,5 +11,12 @@
   "dependencies": {
     "com.unity.purchasing": "5.4.2"
   },
-  "testables": ["com.coffeebean.purchase"]
+  "testables": ["com.coffeebean.purchase"],
+  "samples": [
+    {
+      "displayName": "Purchase Demo",
+      "description": "完整购买流程示例：初始化、商品下发缓存、购买（可选服务器核销）、发货、恢复购买。编辑器可用假商店跑通全流程。",
+      "path": "Samples~/PurchaseDemo"
+    }
+  ]
 }

@@ -1,0 +1,16 @@
+{
+  "name": "CoffeeBean.Purchase.Demo",
+  "rootNamespace": "CoffeeBean.Purchase.Samples",
+  "references": [
+    "CoffeeBean.Purchase"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

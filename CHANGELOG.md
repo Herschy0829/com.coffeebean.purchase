@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4] - 2025-xx-xx
+
+### Added
+- **示例：Purchase Demo**（`Samples~/PurchaseDemo`，Package Manager 可一键导入）：
+  完整购买流程演示——初始化、商品下发缓存、查询、购买（可选服务器核销）、发货、失败处理、恢复购买；
+  内置假商店适配器（`DemoStoreAdapter`）让全流程在编辑器即可跑通，附 `DemoPurchaseVerifier` 服务器核销示例实现
+
 ## [0.1.3] - 2025-xx-xx
 
 ### Fixed
