@@ -49,7 +49,7 @@ service.RestorePurchases();
 | `Id_s` | string | ✅ | 内部商品 ID（服务端对账/补发用），唯一；为空视为注释行，跳过 |
 | `GoogleProductId_s` | string | ✅ | Google Play 商品 ID，唯一；无效（空/占位符）则商品不参与初始化 |
 | `AppleProductId_s` | string | ✅ | App Store 商品 ID，唯一；无效（空/占位符）则商品不参与初始化 |
-| `ConsumeType_i` | int | ✅ | 0=消耗型 1=非消耗型 2=映射为非消耗型（礼包/特权类） |
+| `ConsumeType_i` | int | ✅ | **1=可消耗**（可重复购买） **2=不可消耗**（礼包/永久增益）；0 兼容为消耗 |
 | `IapType_i` | int | | 显式商店类型（可选，**优先于 ConsumeType_i**）：0=消耗 1=非消耗 2=订阅 |
 | `Title_s` | string | | 兜底显示名 |
 | `Description_s` | string | | 兜底描述 |

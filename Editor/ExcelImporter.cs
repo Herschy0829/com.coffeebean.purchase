@@ -341,8 +341,8 @@ namespace CoffeeBean.Purchase.EditorTools
             switch (v)
             {
                 case 0: return IapConsumeType.Consumable;
-                case 1: return IapConsumeType.NonConsumable;
-                // 按项目约定：2 = 礼包/特权类，映射为非消耗型（显式订阅请用 IapType_i=2）
+                // 项目约定：1 = 可消耗（可重复购买，钻石/资源包/特权卡），2 = 不可消耗（礼包/永久增益）
+                case 1: return IapConsumeType.Consumable;
                 case 2: return IapConsumeType.NonConsumable;
                 default:
                     result.Errors.Add(new ImportError { Row = row, Column = ColConsumeType, Message = "商品类型必须是 0/1/2，实际: " + v });

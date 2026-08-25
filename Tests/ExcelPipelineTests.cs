@@ -34,14 +34,14 @@ namespace CoffeeBean.Purchase.Tests
         {
             var result = ExcelImporter.Import(ExcelTestFactory.CreateSampleExcel(_tempDir));
 
-            // 3 行合法：gem_100（消耗）、no_ads（非消耗）、sub_ok（ConsumeType=2 → 映射非消耗）
+            // 3 行合法：gem_100（消耗）、no_ads（ConsumeType=1 → 可消耗）、sub_ok（ConsumeType=2 → 不可消耗）
             Assert.AreEqual(3, result.Products.Count);
             Assert.AreEqual("gem_100", result.Products[0].internalId);
             Assert.AreEqual("no_ads", result.Products[1].internalId);
             Assert.AreEqual("sub_ok", result.Products[2].internalId);
             Assert.AreEqual(IapConsumeType.Consumable, result.Products[0].consumeType);
-            Assert.AreEqual(IapConsumeType.NonConsumable, result.Products[1].consumeType);
-            Assert.AreEqual(IapConsumeType.NonConsumable, result.Products[2].consumeType, "ConsumeType=2 应按映射成为非消耗型");
+            Assert.AreEqual(IapConsumeType.Consumable, result.Products[1].consumeType, "ConsumeType=1 应为可消耗（可重复购买）");
+            Assert.AreEqual(IapConsumeType.NonConsumable, result.Products[2].consumeType, "ConsumeType=2 应为不可消耗（礼包/永久增益）");
 
             // 各类问题都被报告
             Assert.IsTrue(result.HasErrors);
@@ -64,7 +64,7 @@ namespace CoffeeBean.Purchase.Tests
 
             Assert.AreEqual(IapConsumeType.Consumable, result.Products.Find(p => p.internalId == "a").consumeType, "ConsumeType=1 + IapType=0 → 消耗型");
             Assert.AreEqual(IapConsumeType.Subscription, result.Products.Find(p => p.internalId == "b").consumeType, "ConsumeType=0 + IapType=2 → 订阅");
-            Assert.AreEqual(IapConsumeType.NonConsumable, result.Products.Find(p => p.internalId == "c").consumeType, "无 IapType + ConsumeType=2 → 非消耗");
+            Assert.AreEqual(IapConsumeType.NonConsumable, result.Products.Find(p => p.internalId == "c").consumeType, "无 IapType + ConsumeType=2 → 不可消耗");
         }
 
         [Test]
