@@ -11,8 +11,9 @@ namespace CoffeeBean.Purchase.EditorTools
     public static class ExcelTestFactory
     {
         /// <summary>
-        /// 生成示例商品表：2 行合法 + 3 行非法
-        /// （行3 缺内部ID；行4 订阅暂不支持；行5 Google ID 与行1 重复）。
+        /// 生成示例商品表：
+        /// 行1/2 合法（消耗/非消耗）；行3 缺内部ID（警告跳过）；行4 类型非法（3，报错）；
+        /// 行5 Google ID 重复；行6 ConsumeType=2 → 按映射成为非消耗型（合法）。
         /// </summary>
         public static string CreateSampleExcel(string directory)
         {
@@ -21,10 +22,28 @@ namespace CoffeeBean.Purchase.EditorTools
                 Row("gem_100", "com.example.gem100", "com.example.gem100.ios", 0, "100 Gems", "", 1.99, "USD", 1, "currency", 1, -1, "{\"x\":1}"),
                 Row("no_ads", "com.example.noads", "com.example.noads.ios", 1, "Remove Ads", "", 4.99, "USD", 1, "", 2, 0, ""),
                 Row("", "com.example.bad1", "com.example.bad1.ios", 0, "", "", 0, "", 1, "", 0, -1, ""),
-                Row("sub_test", "com.example.sub", "com.example.sub.ios", 2, "Sub", "", 0, "", 1, "", 0, -1, ""),
+                Row("bad_type", "com.example.bad2", "com.example.bad2.ios", 3, "", "", 0, "", 1, "", 0, -1, ""),
                 Row("gem_200", "com.example.gem100", "com.example.gem200.ios", 0, "", "", 0, "", 1, "", 0, -1, ""),
+                Row("sub_ok", "com.example.subok", "com.example.subok.ios", 2, "", "", 0, "", 1, "", 0, -1, ""),
             };
             string path = Path.Combine(directory, "products.xlsx");
+            MiniExcel.SaveAs(path, rows, overwriteFile: true);
+            return path;
+        }
+
+        /// <summary>生成含显式商店类型列（IapType_i）的表：IapType 优先于 ConsumeType 映射。</summary>
+        public static string CreateExplicitTypeExcel(string directory)
+        {
+            var rows = new List<IDictionary<string, object>>
+            {
+                // ConsumeType=1（默认非消耗）但 IapType=0 → 消耗型（覆盖）
+                new Dictionary<string, object> { ["Id_s"] = "a", ["GoogleProductId_s"] = "com.example.a", ["AppleProductId_s"] = "com.example.a.ios", ["ConsumeType_i"] = 1, ["IapType_i"] = 0 },
+                // ConsumeType=0（默认消耗）但 IapType=2 → 订阅（覆盖）
+                new Dictionary<string, object> { ["Id_s"] = "b", ["GoogleProductId_s"] = "com.example.b", ["AppleProductId_s"] = "com.example.b.ios", ["ConsumeType_i"] = 0, ["IapType_i"] = 2 },
+                // 无 IapType（空值）→ 走 ConsumeType 映射：2 → 非消耗
+                new Dictionary<string, object> { ["Id_s"] = "c", ["GoogleProductId_s"] = "com.example.c", ["AppleProductId_s"] = "com.example.c.ios", ["ConsumeType_i"] = 2, ["IapType_i"] = "" },
+            };
+            string path = Path.Combine(directory, "explicit_type.xlsx");
             MiniExcel.SaveAs(path, rows, overwriteFile: true);
             return path;
         }

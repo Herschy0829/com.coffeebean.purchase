@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using CoffeeBean.Purchase;
 using MiniExcelLibs;
 using UnityEngine;
@@ -20,6 +21,9 @@ namespace CoffeeBean.Purchase.EditorTools
             public string Column;
             public string Message;
 
+            /// <summary>警告级：不阻塞生成（如商店 ID 无效跳过、空行、注释行）。</summary>
+            public bool IsWarning;
+
             public override string ToString() => $"第 {Row} 行 [{Column}]: {Message}";
         }
 
@@ -29,12 +33,18 @@ namespace CoffeeBean.Purchase.EditorTools
             public List<IapProductDefinition> Products = new List<IapProductDefinition>();
             public List<ImportError> Errors = new List<ImportError>();
             public bool HasErrors => Errors.Count > 0;
+
+            /// <summary>是否存在阻塞性错误（警告不算）。</summary>
+            public bool HasBlockingErrors { get { foreach (var e in Errors) if (!e.IsWarning) return true; return false; } }
+
+            public int WarningCount { get { int n = 0; foreach (var e in Errors) if (e.IsWarning) n++; return n; } }
         }
 
         private const string ColInternalId = "Id_s";
         private const string ColGoogleId = "GoogleProductId_s";
         private const string ColAppleId = "AppleProductId_s";
         private const string ColConsumeType = "ConsumeType_i";
+        private const string ColIapType = "IapType_i";
         private const string ColTitle = "Title_s";
         private const string ColDescription = "Description_s";
         private const string ColPrice = "Price_f";
@@ -44,6 +54,28 @@ namespace CoffeeBean.Purchase.EditorTools
         private const string ColSortOrder = "SortOrder_i";
         private const string ColVerify = "Verify_i";
         private const string ColExtra = "Extra_s";
+
+        /// <summary>
+        /// 列名别名映射：逻辑字段 → 可接受的列名列表。
+        /// 兼容不同团队的命名习惯（如 ID_i / DefaultPrice_s / 中文表头）。
+        /// </summary>
+        private static readonly Dictionary<string, string[]> ColumnAliases = new Dictionary<string, string[]>
+        {
+            [ColInternalId] = new[] { "Id_s", "ID_i", "商品ID", "内部ID" },
+            [ColGoogleId] = new[] { "GoogleProductId_s", "Google商品ID" },
+            [ColAppleId] = new[] { "AppleProductId_s", "Apple商品ID" },
+            [ColConsumeType] = new[] { "ConsumeType_i", "商品类型" },
+            [ColIapType] = new[] { "IapType_i", "商店类型", "IAP类型" },
+            [ColTitle] = new[] { "Title_s", "显示名称" },
+            [ColDescription] = new[] { "Description_s", "商品描述" },
+            [ColPrice] = new[] { "Price_f", "DefaultPrice_s", "默认显示价格" },
+            [ColCurrency] = new[] { "Currency_s", "货币" },
+            [ColEnabled] = new[] { "Enabled_i", "是否启用" },
+            [ColGroup] = new[] { "Group_s" },
+            [ColSortOrder] = new[] { "SortOrder_i", "排序权重" },
+            [ColVerify] = new[] { "Verify_i" },
+            [ColExtra] = new[] { "Extra_s" },
+        };
 
         /// <summary>解析 Excel 文件（.xlsx）。路径不存在 / 文件损坏时返回带错误的结果（不抛异常）。</summary>
         public static ImportResult Import(string excelPath)
@@ -68,15 +100,28 @@ namespace CoffeeBean.Purchase.EditorTools
                     return result;
                 }
 
-                // 表头 = 第一行（列字母 → 列名映射，列名去空格、大小写不敏感）
-                var headerRow = rows[0];
-                var columnIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                // 表头检测：前 3 行中匹配已知列名最多的行（支持"中文说明行 + 字段名行"的双行表头）
+                int headerIndex = FindHeaderRow(rows);
+                var headerRow = rows[headerIndex];
+                // 逻辑字段名 → 列字母（MiniExcel useHeaderRow:false 时键为列字母）
+                var columnIndex = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 int maxCol = headerRow.Count;
                 for (int c = 0; c < maxCol; c++)
                 {
                     string name = ToText(GetCell(headerRow, c)).Trim();
                     if (string.IsNullOrEmpty(name)) continue;
-                    if (!columnIndex.ContainsKey(name)) columnIndex[name] = c;
+                    foreach (KeyValuePair<string, string[]> kv in ColumnAliases)
+                    {
+                        foreach (string alias in kv.Value)
+                        {
+                            if (string.Equals(name, alias, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (!columnIndex.ContainsKey(kv.Key))
+                                    columnIndex[kv.Key] = ColumnLetter(c);
+                                break;
+                            }
+                        }
+                    }
                 }
 
                 // 校验必填列存在
@@ -87,9 +132,9 @@ namespace CoffeeBean.Purchase.EditorTools
                 }
                 if (result.Errors.Count > 0) return result;
 
-                // 数据行（第 2 行起，Excel 行号 = 行索引 + 1）
+                // 数据行（表头之后，Excel 行号 = 行索引 + 1）
                 var productRows = new List<int>();
-                for (int r = 1; r < rows.Count; r++)
+                for (int r = headerIndex + 1; r < rows.Count; r++)
                 {
                     var row = rows[r];
                     int rowNumber = r + 1;
@@ -98,13 +143,36 @@ namespace CoffeeBean.Purchase.EditorTools
                     var def = new IapProductDefinition();
                     int errorStart = result.Errors.Count;
 
-                    def.internalId = ToText(GetCell(row, columnIndex[ColInternalId])).Trim();
-                    def.googleProductId = ToText(GetCell(row, columnIndex[ColGoogleId])).Trim();
-                    def.appleProductId = ToText(GetCell(row, columnIndex[ColAppleId])).Trim();
-                    def.consumeType = ParseConsumeType(ToText(GetCell(row, columnIndex[ColConsumeType])), result, rowNumber);
+                    def.internalId = ToText(GetCell(row, columnIndex, ColInternalId)).Trim();
+                    def.googleProductId = ToText(GetCell(row, columnIndex, ColGoogleId)).Trim();
+                    def.appleProductId = ToText(GetCell(row, columnIndex, ColAppleId)).Trim();
+                    // 商品类型：优先 IapType_i（显式商店类型 0/1/2），否则按 ConsumeType_i 映射
+                    string explicitTypeText = ToText(GetCell(row, columnIndex, ColIapType)).Trim();
+                    string consumeTypeText = ToText(GetCell(row, columnIndex, ColConsumeType)).Trim();
+                    bool consumeTypeNumeric = int.TryParse(consumeTypeText, out _);
+
+                    // 注释/说明行（如底部图例）：内部 ID 为空 且 类型列是非数字文本 → 警告跳过，不报错
+                    if (string.IsNullOrEmpty(def.internalId) && !consumeTypeNumeric && string.IsNullOrEmpty(explicitTypeText))
+                    {
+                        result.Errors.Add(new ImportError
+                        {
+                            Row = rowNumber,
+                            Column = ColConsumeType,
+                            Message = "类型列为非数字（疑似注释文本），该行视为注释行已跳过",
+                            IsWarning = true,
+                        });
+                    }
+                    else if (!string.IsNullOrEmpty(explicitTypeText))
+                    {
+                        def.consumeType = ParseExplicitType(explicitTypeText, result, rowNumber);
+                    }
+                    else
+                    {
+                        def.consumeType = ParseConsumeType(consumeTypeText, result, rowNumber);
+                    }
                     def.title = ToText(GetCell(row, columnIndex, ColTitle)).Trim();
                     def.description = ToText(GetCell(row, columnIndex, ColDescription)).Trim();
-                    def.priceAnchor = ParseFloat(ToText(GetCell(row, columnIndex, ColPrice)), result, rowNumber, ColPrice, "价格锚点必须为 >= 0 的数字");
+                    def.priceAnchor = ParsePriceTolerant(ToText(GetCell(row, columnIndex, ColPrice)));
                     def.currency = ToText(GetCell(row, columnIndex, ColCurrency)).Trim();
                     def.enabled = ParseEnabled(ToText(GetCell(row, columnIndex, ColEnabled)), result, rowNumber);
                     def.group = ToText(GetCell(row, columnIndex, ColGroup)).Trim();
@@ -112,13 +180,29 @@ namespace CoffeeBean.Purchase.EditorTools
                     def.serverVerifyOverride = (int)ParseVerify(ToText(GetCell(row, columnIndex, ColVerify)), result, rowNumber);
                     def.extra = ToText(GetCell(row, columnIndex, ColExtra)).Trim();
 
-                    // 必填
+                    // 内部商品 ID 为空 → 视为注释/空行，警告并跳过（不阻塞）
                     if (string.IsNullOrEmpty(def.internalId))
-                        result.Errors.Add(new ImportError { Row = rowNumber, Column = ColInternalId, Message = "内部商品 ID 不能为空" });
-                    if (string.IsNullOrEmpty(def.googleProductId))
-                        result.Errors.Add(new ImportError { Row = rowNumber, Column = ColGoogleId, Message = "Google 商品 ID 不能为空" });
-                    if (string.IsNullOrEmpty(def.appleProductId))
-                        result.Errors.Add(new ImportError { Row = rowNumber, Column = ColAppleId, Message = "Apple 商品 ID 不能为空" });
+                    {
+                        result.Errors.Add(new ImportError
+                        {
+                            Row = rowNumber,
+                            Column = ColInternalId,
+                            Message = "内部商品 ID 为空，该行视为注释/占位，已跳过",
+                            IsWarning = true,
+                        });
+                    }
+
+                    // Google/Apple 商店 ID 无效（空 / 占位符）→ 该商品不参与初始化，整行跳过（警告，不阻塞生成）
+                    if (IsValidStoreId(def.googleProductId) == false || IsValidStoreId(def.appleProductId) == false)
+                    {
+                        result.Errors.Add(new ImportError
+                        {
+                            Row = rowNumber,
+                            Column = ColGoogleId,
+                            Message = $"商店 ID 无效（Google:'{def.googleProductId}' Apple:'{def.appleProductId}'），该商品已跳过、不参与初始化",
+                            IsWarning = true,
+                        });
+                    }
 
                     // 货币格式
                     if (!string.IsNullOrEmpty(def.currency) && !IsCurrencyCode(def.currency))
@@ -126,7 +210,7 @@ namespace CoffeeBean.Purchase.EditorTools
 
                     // Extra 应为合法 JSON（警告级）
                     if (!string.IsNullOrEmpty(def.extra) && !IsJson(def.extra))
-                        result.Errors.Add(new ImportError { Row = rowNumber, Column = ColExtra, Message = "Extra 不是合法 JSON（忽略）" });
+                        result.Errors.Add(new ImportError { Row = rowNumber, Column = ColExtra, Message = "Extra 不是合法 JSON（忽略）", IsWarning = true });
 
                     if (result.Errors.Count == errorStart)
                     {
@@ -147,12 +231,51 @@ namespace CoffeeBean.Purchase.EditorTools
             }
         }
 
-        // ===== 单元格读取 =====
+        // ===== 表头检测 / 单元格读取 =====
 
-        private static object GetCell(IDictionary<string, object> row, Dictionary<string, int> columnIndex, string column)
+        /// <summary>在前 3 行中找到匹配已知列名最多的行作为表头（兼容双行表头）。找不到则用第 1 行。</summary>
+        private static int FindHeaderRow(List<IDictionary<string, object>> rows)
         {
-            if (!columnIndex.TryGetValue(column, out int index)) return null;
-            return GetCell(row, index);
+            int best = 0;
+            int bestCount = -1;
+            int scan = Math.Min(rows.Count, 3);
+            for (int i = 0; i < scan; i++)
+            {
+                int count = CountHeaderMatches(rows[i]);
+                if (count > bestCount)
+                {
+                    bestCount = count;
+                    best = i;
+                }
+            }
+            return best;
+        }
+
+        private static int CountHeaderMatches(IDictionary<string, object> row)
+        {
+            // 只统计"规范列名"（每组别名中的第一个，如 GoogleProductId_s）——
+            // 字段名行优先于中文说明行，避免双行表头选错
+            int count = 0;
+            for (int c = 0; c < row.Count; c++)
+            {
+                string name = ToText(GetCell(row, c)).Trim();
+                if (string.IsNullOrEmpty(name)) continue;
+                foreach (KeyValuePair<string, string[]> kv in ColumnAliases)
+                {
+                    if (string.Equals(name, kv.Value[0], StringComparison.OrdinalIgnoreCase))
+                    {
+                        count++;
+                        break;
+                    }
+                }
+            }
+            return count;
+        }
+
+        private static object GetCell(IDictionary<string, object> row, Dictionary<string, string> columnIndex, string column)
+        {
+            if (!columnIndex.TryGetValue(column, out string letter)) return null;
+            return row.TryGetValue(letter, out object v) ? v : null;
         }
 
         private static object GetCell(IDictionary<string, object> row, int index)
@@ -212,20 +335,28 @@ namespace CoffeeBean.Purchase.EditorTools
         {
             if (!int.TryParse(text, out int v))
             {
-                result.Errors.Add(new ImportError { Row = row, Column = ColConsumeType, Message = "商品类型必须是整数 0/1，实际: '" + text + "'" });
+                result.Errors.Add(new ImportError { Row = row, Column = ColConsumeType, Message = "商品类型必须是整数 0/1/2，实际: '" + text + "'" });
                 return IapConsumeType.Consumable;
             }
-            if (v == (int)IapConsumeType.Subscription)
+            switch (v)
             {
-                result.Errors.Add(new ImportError { Row = row, Column = ColConsumeType, Message = "订阅（ConsumeType=2）v1 暂不支持，请使用 0（消耗型）或 1（非消耗型）" });
-                return IapConsumeType.Subscription;
+                case 0: return IapConsumeType.Consumable;
+                case 1: return IapConsumeType.NonConsumable;
+                // 按项目约定：2 = 礼包/特权类，映射为非消耗型（显式订阅请用 IapType_i=2）
+                case 2: return IapConsumeType.NonConsumable;
+                default:
+                    result.Errors.Add(new ImportError { Row = row, Column = ColConsumeType, Message = "商品类型必须是 0/1/2，实际: " + v });
+                    return IapConsumeType.Consumable;
             }
-            if (v != 0 && v != 1)
-            {
-                result.Errors.Add(new ImportError { Row = row, Column = ColConsumeType, Message = "商品类型必须是 0 或 1，实际: " + v });
-                return IapConsumeType.Consumable;
-            }
-            return (IapConsumeType)v;
+        }
+
+        /// <summary>显式商店类型（IapType_i）：直接映射 Unity IAP 的 ProductType，0/1/2。</summary>
+        private static IapConsumeType ParseExplicitType(string text, ImportResult result, int row)
+        {
+            if (int.TryParse(text, out int v) && v >= 0 && v <= 2)
+                return (IapConsumeType)v;
+            result.Errors.Add(new ImportError { Row = row, Column = ColIapType, Message = "IapType_i 必须是 0（消耗）/1（非消耗）/2（订阅），实际: '" + text + "'" });
+            return IapConsumeType.Consumable;
         }
 
         private static float ParseFloat(string text, ImportResult result, int row, string column, string error)
@@ -245,6 +376,31 @@ namespace CoffeeBean.Purchase.EditorTools
             if (text == "1") return true;
             if (text == "0") return false;
             result.Errors.Add(new ImportError { Row = row, Column = ColEnabled, Message = "Enabled_i 必须是 0 或 1，实际: '" + text + "'" });
+            return true;
+        }
+
+        /// <summary>宽松价格解析：取字符串开头的数字部分（"30"→30，"¥68"→68，"$1.99"→1.99），解析失败返回 0。</summary>
+        private static float ParsePriceTolerant(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return 0f;
+            var m = Regex.Match(text.Trim(), @"\d+(\.\d+)?");
+            return m.Success ? float.Parse(m.Value) : 0f;
+        }
+
+        /// <summary>商店 ID 是否有效：空 / 空白 / 占位符（-、0、TBD、待定 等）视为无效，无效则商品不参与初始化。</summary>
+        private static readonly string[] StoreIdPlaceholders =
+        {
+            "-", "--", "0", "none", "null", "n/a", "na", "tbd", "todo", "待定", "无", "未定", "暂无",
+        };
+
+        private static bool IsValidStoreId(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id)) return false;
+            string trimmed = id.Trim();
+            foreach (string placeholder in StoreIdPlaceholders)
+            {
+                if (string.Equals(trimmed, placeholder, StringComparison.OrdinalIgnoreCase)) return false;
+            }
             return true;
         }
 

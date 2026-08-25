@@ -154,16 +154,19 @@ namespace CoffeeBean.Purchase.EditorTools
         {
             if (string.IsNullOrEmpty(excelPath)) return;
             var result = ExcelImporter.Import(excelPath);
-            if (result.HasErrors)
+            var blocking = result.Errors.Where(e => !e.IsWarning).ToList();
+            if (blocking.Count > 0)
             {
                 EditorUtility.DisplayDialog("CoffeeBean Purchase - 校验失败",
-                    "共 " + result.Errors.Count + " 个错误:\n" +
-                    string.Join("\n", System.Linq.Enumerable.Take(result.Errors.Select(e => e.ToString()), 30)),
+                    "共 " + blocking.Count + " 个错误:\n" +
+                    string.Join("\n", blocking.Take(30).Select(e => e.ToString())) +
+                    (result.WarningCount > 0 ? $"\n\n（另有 {result.WarningCount} 条警告，相关行将被跳过）" : ""),
                     "OK");
             }
             else if (showSuccess)
             {
-                EditorUtility.DisplayDialog("CoffeeBean Purchase", $"校验通过：{result.Products.Count} 个商品。", "OK");
+                string warn = result.WarningCount > 0 ? $"（跳过 {result.WarningCount} 行警告）" : "";
+                EditorUtility.DisplayDialog("CoffeeBean Purchase", $"校验通过：{result.Products.Count} 个商品 {warn}", "OK");
             }
         }
     }

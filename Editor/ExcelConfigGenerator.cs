@@ -19,9 +19,15 @@ namespace CoffeeBean.Purchase.EditorTools
 
         private static string FormatErrors(ExcelImporter.ImportResult result)
         {
-            if (result == null || result.Errors.Count == 0) return "Excel 解析失败（未知错误）";
-            return "Excel 解析失败，共 " + result.Errors.Count + " 个错误:\n" +
-                   string.Join("\n", result.Errors.Select(e => e.ToString()));
+            if (result == null) return "Excel 解析失败（未知错误）";
+            var blocking = result.Errors.Where(e => !e.IsWarning).ToList();
+            if (blocking.Count == 0 && result.Products.Count == 0)
+                return "没有可生成的有效商品（所有行都被跳过/为空）。";
+            string body = blocking.Count > 0
+                ? string.Join("\n", blocking.Select(e => e.ToString()))
+                : "没有可生成的有效商品。";
+            string warn = result.WarningCount > 0 ? $"\n\n（另有 {result.WarningCount} 条警告，相关行已跳过）" : "";
+            return $"Excel 解析失败，共 {blocking.Count} 个错误:\n{body}{warn}";
         }
     }
 
@@ -38,7 +44,10 @@ namespace CoffeeBean.Purchase.EditorTools
             if (string.IsNullOrEmpty(outputFolder)) outputFolder = DefaultOutputFolder;
 
             ExcelImporter.ImportResult result = ExcelImporter.Import(excelPath);
-            if (result.HasErrors) throw new ExcelImportException(result);
+            // 只被"阻塞性错误"拦截；警告（商店 ID 无效跳过、注释行等）不阻塞生成
+            if (result.HasBlockingErrors) throw new ExcelImportException(result);
+            if (result.Products.Count == 0)
+                throw new ExcelImportException(result); // 无有效商品，也视为失败
 
             EnsureFolder(outputFolder);
             string assetPath = Path.Combine(outputFolder, "IapConfig.asset").Replace('\\', '/');
@@ -62,7 +71,8 @@ namespace CoffeeBean.Purchase.EditorTools
             File.WriteAllText(jsonPath, config.ToJson());
             AssetDatabase.ImportAsset(jsonPath, ImportAssetOptions.ForceUpdate);
 
-            message = $"生成成功：{result.Products.Count} 个商品\n.asset → {assetPath}\n.json → {jsonPath}";
+            string warningNote = result.WarningCount > 0 ? $"\n（警告 {result.WarningCount} 条，相关行已跳过）" : "";
+            message = $"生成成功：{result.Products.Count} 个商品{warningNote}\n.asset → {assetPath}\n.json → {jsonPath}";
             return config;
         }
 

@@ -46,19 +46,22 @@ service.RestorePurchases();
 
 | 列名 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `Id_s` | string | ✅ | 内部商品 ID（服务端对账/补发用），唯一 |
-| `GoogleProductId_s` | string | ✅ | Google Play 商品 ID，唯一 |
-| `AppleProductId_s` | string | ✅ | App Store 商品 ID，唯一 |
-| `ConsumeType_i` | int | ✅ | 0=消耗型 1=非消耗型（2=订阅暂不支持） |
+| `Id_s` | string | ✅ | 内部商品 ID（服务端对账/补发用），唯一；为空视为注释行，跳过 |
+| `GoogleProductId_s` | string | ✅ | Google Play 商品 ID，唯一；无效（空/占位符）则商品不参与初始化 |
+| `AppleProductId_s` | string | ✅ | App Store 商品 ID，唯一；无效（空/占位符）则商品不参与初始化 |
+| `ConsumeType_i` | int | ✅ | 0=消耗型 1=非消耗型 2=映射为非消耗型（礼包/特权类） |
+| `IapType_i` | int | | 显式商店类型（可选，**优先于 ConsumeType_i**）：0=消耗 1=非消耗 2=订阅 |
 | `Title_s` | string | | 兜底显示名 |
 | `Description_s` | string | | 兜底描述 |
-| `Price_f` | float | | 价格锚点（实际价格以商店下发为准） |
+| `Price_f` | float | | 价格锚点（实际价格以商店下发为准；支持 `¥68` 这类字符串取数字部分） |
 | `Currency_s` | string | | 货币代码覆盖（3 位大写） |
 | `Enabled_i` | int | | 0/1 上架开关，默认 1 |
 | `Group_s` | string | | 分组/礼包标识 |
 | `SortOrder_i` | int | | 排序 |
 | `Verify_i` | int | | -1 跟随全局 / 0 否 / 1 是 |
 | `Extra_s` | string | | 扩展透传（JSON） |
+
+> 支持别名与双行表头：字段名行可在前 3 行任意位置（如"中文说明行 + 字段名行"）；列名兼容 `ID_i`/`DefaultPrice_s`/中文表头等。
 
 ## 依赖
 
