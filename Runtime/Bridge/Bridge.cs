@@ -6,7 +6,7 @@ using CoffeeBean;
 
 [assembly: CoffeeBeanModule(
     "com.coffeebean.purchase",
-    "0.1.4",
+    "0.1.5",
     DisplayName = "Purchase",
     Description = "In-app purchase module based on Unity IAP 5.4.",
     Dependencies = new[] { "com.coffeebean.core" }

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.5] - 2025-xx-xx
+
+### Fixed
+- **服务器拒绝核销不再静默**：`VerificationResult.Rejected` 时触发 `OnPurchaseFailed`
+  （`FailureReason = "ServerRejected"`），业务方可提示玩家 / 走客服流程；
+  订单保持未核销（交易未确认，人工判定有效后启动补发仍可恢复）
+- 失败订单携带源订单的交易号 / 商店 / 收据（`FailOrder` 重载），便于定位与客服处理
+
+### Changed
+- 拒绝场景日志补充说明
+
 ## [0.1.4] - 2025-xx-xx
 
 ### Added

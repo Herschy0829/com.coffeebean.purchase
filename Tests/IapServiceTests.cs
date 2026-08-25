@@ -130,7 +130,7 @@ namespace CoffeeBean.Purchase.Tests
         }
 
         [Test]
-        public void Purchase_ServerVerify_Rejected_NotFulfilled()
+        public void Purchase_ServerVerify_Rejected_NotFulfilled_AndNotifiesBusiness()
         {
             _config.serverVerifyEnabled = true;
             _service.Initialize(_config, new FakeVerifier(VerificationResult.Rejected));
@@ -141,6 +141,9 @@ namespace CoffeeBean.Purchase.Tests
 
             Assert.IsFalse(WaitFor(() => _succeeded.Count == 1, 300), "服务器拒绝不应发货");
             Assert.AreEqual(0, _succeeded.Count);
+            Assert.IsTrue(WaitFor(() => _failed.Count == 1, 1000), "服务器拒绝应通知业务（OnPurchaseFailed）");
+            Assert.AreEqual("ServerRejected", _failed[0].FailureReason, "拒绝原因应明确标注 ServerRejected");
+            Assert.AreEqual("txn-r", _failed[0].TransactionId);
         }
 
         [Test]

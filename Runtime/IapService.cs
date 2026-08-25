@@ -336,7 +336,11 @@ namespace CoffeeBean.Purchase
                 if (completed && result == VerificationResult.Rejected)
                 {
                     IapLog.Warn($"Server rejected receipt: {order.TransactionId}. Purchase kept unfulfilled.");
-                    return; // 不再自动补发（服务器判定无效）；如需人工处理可监听日志/单独接口
+                    // 服务器判定无效：必须明确通知业务（玩家已付款但校验被拒，需要提示 / 风控 / 客服介入）。
+                    // 保持未核销：交易未确认，若后续人工判定有效，启动补发流程仍可恢复。
+                    OnPurchaseFailed?.Invoke(FailOrder(order, "ServerRejected",
+                        $"Server rejected receipt for transaction {order.TransactionId}."));
+                    return;
                 }
                 IapLog.Warn($"Server verify failed/timeout (attempt {attempt + 1}/{retries + 1}), will retry.");
             }
@@ -350,6 +354,19 @@ namespace CoffeeBean.Purchase
             {
                 Kind = IapOrderKind.Failed,
                 InternalId = internalId,
+                FailureReason = reason,
+                Details = details,
+            };
+
+        /// <summary>从已确认订单派生失败订单：保留交易号 / 商店 / 收据，便于业务侧定位与客服处理。</summary>
+        private static IapOrder FailOrder(IapOrder source, string reason, string details)
+            => new IapOrder
+            {
+                Kind = IapOrderKind.Failed,
+                InternalId = source.InternalId,
+                TransactionId = source.TransactionId,
+                StoreName = source.StoreName,
+                Receipt = source.Receipt,
                 FailureReason = reason,
                 Details = details,
             };
