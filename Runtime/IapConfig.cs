@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>
     /// 支付模块配置（Excel 生成的产物：.asset 供运行时读取，JSON 为旁证/CI 用）。

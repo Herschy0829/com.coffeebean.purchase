@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>
     /// 支付模块对外门面：初始化、商品缓存查询、购买（可选服务器二次确认）、恢复购买。

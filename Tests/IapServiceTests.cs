@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using CoffeeBean.Purchase;
 using NUnit.Framework;
 using UnityEngine;
 

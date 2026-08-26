@@ -1,4 +1,4 @@
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>
     /// 运行时商品数据：Excel 定义 + 商店下发缓存（价格/描述/货币等）。

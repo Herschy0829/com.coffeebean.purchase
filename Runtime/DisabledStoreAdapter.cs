@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>
     /// 商店不可用时的兜底适配层（如编辑器/测试环境、商店工厂未注册）。

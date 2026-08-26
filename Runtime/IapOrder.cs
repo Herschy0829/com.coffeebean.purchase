@@ -1,4 +1,4 @@
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>订单类型。</summary>
     public enum IapOrderKind

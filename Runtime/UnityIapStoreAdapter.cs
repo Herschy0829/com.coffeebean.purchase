@@ -4,7 +4,7 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.Purchasing;
 
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>
     /// Unity IAP 5.4 适配层：本文件是模块里唯一直接引用 UnityEngine.Purchasing 的地方。

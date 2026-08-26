@@ -1,4 +1,4 @@
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>
     /// 商品类型（对应 Excel 的 ConsumeType_i）。

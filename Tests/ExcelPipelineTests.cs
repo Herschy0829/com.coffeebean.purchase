@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using CoffeeBean.Purchase;
 using CoffeeBean.Purchase.EditorTools;
 using NUnit.Framework;
 using UnityEditor;

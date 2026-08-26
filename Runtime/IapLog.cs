@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>可开关的模块日志。</summary>
     public static class IapLog

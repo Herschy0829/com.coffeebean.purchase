@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>
     /// 商店适配层抽象：把 Unity IAP 5.4 隔离在实现里（UnityIapStoreAdapter），

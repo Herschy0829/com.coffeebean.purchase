@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>服务器核销结果。</summary>
     public enum VerificationResult

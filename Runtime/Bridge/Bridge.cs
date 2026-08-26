@@ -6,13 +6,13 @@ using CoffeeBean;
 
 [assembly: CoffeeBeanModule(
     "com.coffeebean.purchase",
-    "0.1.6",
+    "0.2.0",
     DisplayName = "Purchase",
     Description = "In-app purchase module based on Unity IAP 5.4.",
     Dependencies = new[] { "com.coffeebean.core" }
 )]
 
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>Core 集成：把 IapService 注册进服务注册表，其他模块可通过 context.Services.Get&lt;IapService&gt;() 使用。</summary>
     public sealed class PurchaseModule : ICoffeeBeanModule

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>
     /// 已处理交易日志（去重用）：内存集合 + 可选 PlayerPrefs 持久化。

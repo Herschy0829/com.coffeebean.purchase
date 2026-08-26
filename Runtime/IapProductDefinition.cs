@@ -1,6 +1,6 @@
 using System;
 
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>
     /// 商品定义（由 Excel 配置生成，见 design-iap.md §3）。

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace CoffeeBean.Purchase
+namespace CoffeeBean
 {
     /// <summary>平台判断与商店 ID 解析。</summary>
     public static class IapPlatform

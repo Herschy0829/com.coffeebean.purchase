@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
-using CoffeeBean.Excel;
-using CoffeeBean.Purchase;
 
 namespace CoffeeBean.Purchase.EditorTools
 {
