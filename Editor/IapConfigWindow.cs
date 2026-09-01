@@ -2,13 +2,15 @@ using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using CoffeeBean.EditorTools;
 
 namespace CoffeeBean.Purchase.EditorTools
 {
     /// <summary>
-    /// 支付模块配置窗口：Window > CoffeeBean > Purchase Config。
+    /// 支付模块配置窗口（入口：Window &gt; CoffeeBean 收敛到 CoffeeBean Hub）。
     /// 选择 Excel 表 → 校验弹窗 → 生成 IapConfig(.asset + .json)；可随时手动重新生成。
     /// </summary>
+    [CoffeeBeanTool("内购配置", "选择 Excel 商品表 → 校验 → 生成 IapConfig（asset + json）", "Purchase")]
     public sealed class IapConfigWindow : EditorWindow
     {
         public const string ExcelPathPrefKey = "CoffeeBean.Purchase.ExcelPath";
@@ -19,7 +21,7 @@ namespace CoffeeBean.Purchase.EditorTools
         private IapConfig _config;
         private Vector2 _scroll;
 
-        [MenuItem("Window/CoffeeBean/Purchase Config")]
+        // 入口统一收敛到 CoffeeBean Hub（Window > CoffeeBean），不再单独注册菜单项
         public static void Open()
         {
             var window = GetWindow<IapConfigWindow>("CoffeeBean Purchase Config");

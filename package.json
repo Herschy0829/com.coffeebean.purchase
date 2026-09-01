@@ -1,6 +1,6 @@
 {
   "name": "com.coffeebean.purchase",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "displayName": "CoffeeBean Purchase",
   "description": "Independent in-app purchase module based on Unity IAP 5.4. Excel-driven product config (via com.coffeebean.excel), optional server-side receipt verification, restore purchases. Works standalone or integrated with CoffeeBean Core.",
   "unity": "6000.0",
