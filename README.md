@@ -2,7 +2,7 @@
 
 CoffeeBean 支付模块：基于 Unity IAP 5.4 的内购统一封装。
 
-- **独立模块**：不依赖 CoffeeBean 任何其他模块，单独安装即可独立工作；工程装有 Core 时自动集成（注册进服务注册表，可由 Module Manager 管理装卸）
+- **独立模块**：运行时不依赖 CoffeeBean 任何其他模块，单独安装即可独立工作（仅 Excel 配置工具链在编辑器期依赖 `com.coffeebean.excel`，Editor-only）；工程装有 Core 时自动集成（注册进服务注册表，可由 Module Manager 管理装卸）
 - **Excel 驱动配置**：编辑器内选择一张 Excel 表配置所有商品，校验后生成 `IapConfig.asset + .json`；打包前自动重新解析，保证配置最新
 - **可选服务器二次确认**：无服务器时可正常购买；有服务器时通过 `IPurchaseVerifier` 做收据核销，未确认的购买保持 Pending，崩溃/断网后自动补发不丢单
 - **恢复购买**：统一恢复接口，按平台处理
@@ -12,7 +12,7 @@ CoffeeBean 支付模块：基于 Unity IAP 5.4 的内购统一封装。
 ```json
 {
   "dependencies": {
-    "com.coffeebean.purchase": "https://github.com/Herschy0829/com.coffeebean.purchase.git#v0.1.0"
+    "com.coffeebean.purchase": "https://github.com/Herschy0829/com.coffeebean.purchase.git#v0.3.0"
   }
 }
 ```
@@ -49,8 +49,8 @@ service.RestorePurchases();
 | `Id_s` | string | ✅ | 内部商品 ID（服务端对账/补发用），唯一；为空视为注释行，跳过 |
 | `GoogleProductId_s` | string | ✅ | Google Play 商品 ID，唯一；无效（空/占位符）则商品不参与初始化 |
 | `AppleProductId_s` | string | ✅ | App Store 商品 ID，唯一；无效（空/占位符）则商品不参与初始化 |
-| `ConsumeType_i` | int | ✅ | **1=可消耗**（可重复购买） **2=不可消耗**（礼包/永久增益）；0 兼容为消耗 |
-| `IapType_i` | int | | 显式商店类型（可选，**优先于 ConsumeType_i**）：0=消耗 1=非消耗 2=订阅 |
+| `ConsumeType_i` | int | ✅ | **直映商品类型：0=可消耗**（可重复购买）**1=不可消耗**（礼包/永久解锁）；2（订阅）v1 暂不支持，填 2 报错 |
+| `IapType_i` | int | | 显式商店类型（可选，**优先于 ConsumeType_i**）：0=可消耗 1=不可消耗；2（订阅）v1 暂不支持，填 2 报错 |
 | `Title_s` | string | | 兜底显示名 |
 | `Description_s` | string | | 兜底描述 |
 | `Price_f` | float | | 价格锚点（实际价格以商店下发为准；支持 `¥68` 这类字符串取数字部分） |

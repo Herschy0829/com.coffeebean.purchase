@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.3.0] - 2026-09-14
+
+### Changed (BREAKING)
+- **`ConsumeType_i` 恢复为直映 `IapConsumeType`**：`0=可消耗`、`1=不可消耗`，与 `docs/design-iap.md` §3 的既定契约一致。
+  此前实现按"项目约定"做 1 基映射（`1=可消耗`、`2=不可消耗`），与设计文档恰好相反；而 README、实现、测试三者
+  一致地实现了这个错误映射，因此偏差长期未被发现（CHANGELOG 0.1.x 条目显示该映射历史上还翻转过一次）。
+  **升级注意**：按旧 README 填 `1`（"可消耗"）的表，升级后会被解析为**不可消耗**；填 `2`（"不可消耗"）会变成错误。
+  请把配置表改为 `0/1` 直映，或改用 `IapType_i` 显式列。
+- **订阅在 v1 一律校验拦截**：`ConsumeType_i=2` 与 `IapType_i=2` 均报错"订阅暂不支持（v1）"。此前 `IapType_i=2`
+  可绕过该限制直接产生 `Subscription` 商品，与 `IapConsumeType` 枚举文档及 design-iap.md §11 已确认决策不符。
+
+### Fixed
+- `IapConsumeType` 枚举注释不再声称与 `ConsumeType_i` "对应"（该表述掩盖了映射差异），改为明确写出 `0/1` 直映与订阅拦截。
+- `Runtime/Bridge/Bridge.cs` 声明的模块版本由 `0.2.0` 修正为与 `package.json` 一致（此前落后一个版本，
+  Core 的版本校验与 Hub 显示都会读到错误的 0.2.0）。
+
+### Tests
+- `ExcelPipelineTests`：示例表改为 2 行合法（`0` 可消耗 / `1` 不可消耗）+ 订阅（`2`）报错用例；
+  显式类型表改为 `IapType` 覆盖 `0/1` 两个方向，并新增 `2` 被拦截的断言。
+- `ExcelTestFactory`：示例表与显式类型表的数据/注释同步新映射。
+
 ## [0.2.1] - 2026-08-28
 
 ### Changed

@@ -204,31 +204,48 @@ namespace CoffeeBean.Purchase.EditorTools
 
         // ===== 字段解析（IAP 特有，v0.1.6 保留） =====
 
+        /// <summary>
+        /// ConsumeType_i 直映 <see cref="IapConsumeType"/>：0=可消耗，1=不可消耗（见 design-iap.md §3）。
+        /// 2（订阅）v1 不支持，校验拦截。
+        /// </summary>
         private static IapConsumeType ParseConsumeType(string text, ImportResult result, int row)
         {
             if (!int.TryParse(text, out int v))
             {
-                result.Errors.Add(new ImportError { Row = row, Column = ColConsumeType, Message = "商品类型必须是整数 0/1/2，实际: '" + text + "'" });
+                result.Errors.Add(new ImportError { Row = row, Column = ColConsumeType, Message = "商品类型必须是整数 0/1，实际: '" + text + "'" });
                 return IapConsumeType.Consumable;
             }
             switch (v)
             {
                 case 0: return IapConsumeType.Consumable;
-                // 项目约定：1 = 可消耗（可重复购买，钻石/资源包/特权卡），2 = 不可消耗（礼包/永久增益）
-                case 1: return IapConsumeType.Consumable;
-                case 2: return IapConsumeType.NonConsumable;
+                case 1: return IapConsumeType.NonConsumable;
+                case 2:
+                    result.Errors.Add(new ImportError { Row = row, Column = ColConsumeType, Message = "订阅暂不支持（v1），ConsumeType_i 仅支持 0（可消耗）/1（不可消耗）" });
+                    return IapConsumeType.Consumable;
                 default:
-                    result.Errors.Add(new ImportError { Row = row, Column = ColConsumeType, Message = "商品类型必须是 0/1/2，实际: " + v });
+                    result.Errors.Add(new ImportError { Row = row, Column = ColConsumeType, Message = "商品类型必须是 0/1，实际: " + v });
                     return IapConsumeType.Consumable;
             }
         }
 
-        /// <summary>显式商店类型（IapType_i）：直接映射 Unity IAP 的 ProductType，0/1/2。</summary>
+        /// <summary>
+        /// 显式商店类型（IapType_i）：0=可消耗，1=不可消耗，直映 <see cref="IapConsumeType"/>，
+        /// 优先于 ConsumeType_i。2（订阅）v1 不支持，同样拦截。
+        /// </summary>
         private static IapConsumeType ParseExplicitType(string text, ImportResult result, int row)
         {
-            if (int.TryParse(text, out int v) && v >= 0 && v <= 2)
-                return (IapConsumeType)v;
-            result.Errors.Add(new ImportError { Row = row, Column = ColIapType, Message = "IapType_i 必须是 0（消耗）/1（非消耗）/2（订阅），实际: '" + text + "'" });
+            if (int.TryParse(text, out int v))
+            {
+                switch (v)
+                {
+                    case 0: return IapConsumeType.Consumable;
+                    case 1: return IapConsumeType.NonConsumable;
+                    case 2:
+                        result.Errors.Add(new ImportError { Row = row, Column = ColIapType, Message = "订阅暂不支持（v1），IapType_i 仅支持 0（可消耗）/1（不可消耗）" });
+                        return IapConsumeType.Consumable;
+                }
+            }
+            result.Errors.Add(new ImportError { Row = row, Column = ColIapType, Message = "IapType_i 必须是 0（可消耗）/1（不可消耗），实际: '" + text + "'" });
             return IapConsumeType.Consumable;
         }
 

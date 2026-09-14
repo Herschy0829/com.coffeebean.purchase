@@ -1,8 +1,8 @@
 namespace CoffeeBean
 {
     /// <summary>
-    /// 商品类型（对应 Excel 的 ConsumeType_i）。
-    /// v1 仅支持 Consumable / NonConsumable；Subscription 保留枚举值但校验会拦截。
+    /// 商品类型。Excel 的 ConsumeType_i / IapType_i 均**直映**本枚举：0=可消耗，1=不可消耗。
+    /// v1 仅支持 Consumable / NonConsumable；Subscription 保留枚举值但 Excel 校验会拦截（填 2 报错）。
     /// </summary>
     public enum IapConsumeType
     {

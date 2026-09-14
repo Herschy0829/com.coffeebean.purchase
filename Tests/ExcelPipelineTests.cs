@@ -33,19 +33,19 @@ namespace CoffeeBean.Purchase.Tests
         {
             var result = ExcelImporter.Import(ExcelTestFactory.CreateSampleExcel(_tempDir));
 
-            // 3 行合法：gem_100（消耗）、no_ads（ConsumeType=1 → 可消耗）、sub_ok（ConsumeType=2 → 不可消耗）
-            Assert.AreEqual(3, result.Products.Count);
+            // 2 行合法：gem_100（ConsumeType=0 → 可消耗）、no_ads（ConsumeType=1 → 不可消耗）
+            // ConsumeType_i 直映 IapConsumeType（design-iap.md §3）：0=可消耗，1=不可消耗，2=订阅（v1 拦截）
+            Assert.AreEqual(2, result.Products.Count);
             Assert.AreEqual("gem_100", result.Products[0].internalId);
             Assert.AreEqual("no_ads", result.Products[1].internalId);
-            Assert.AreEqual("sub_ok", result.Products[2].internalId);
-            Assert.AreEqual(IapConsumeType.Consumable, result.Products[0].consumeType);
-            Assert.AreEqual(IapConsumeType.Consumable, result.Products[1].consumeType, "ConsumeType=1 应为可消耗（可重复购买）");
-            Assert.AreEqual(IapConsumeType.NonConsumable, result.Products[2].consumeType, "ConsumeType=2 应为不可消耗（礼包/永久增益）");
+            Assert.AreEqual(IapConsumeType.Consumable, result.Products[0].consumeType, "ConsumeType=0 应为可消耗");
+            Assert.AreEqual(IapConsumeType.NonConsumable, result.Products[1].consumeType, "ConsumeType=1 应为不可消耗（永久解锁）");
 
             // 各类问题都被报告
             Assert.IsTrue(result.HasErrors);
             Assert.IsTrue(result.Errors.Exists(e => e.Column == "Id_s"), "空内部 ID 行应被警告跳过");
-            Assert.IsTrue(result.Errors.Exists(e => e.Message.Contains("必须是 0/1/2")), "非法类型（3）应报错");
+            Assert.IsTrue(result.Errors.Exists(e => e.Message.Contains("必须是 0/1")), "非法类型（3）应报错");
+            Assert.IsTrue(result.Errors.Exists(e => e.Message.Contains("订阅暂不支持")), "ConsumeType=2（订阅）v1 应报错");
             Assert.IsTrue(result.Errors.Exists(e => e.Message.Contains("重复")), "重复 Google ID 应报错");
 
             // 警告不阻塞：空 ID 是警告级，非法类型/重复是阻塞级
@@ -61,9 +61,9 @@ namespace CoffeeBean.Purchase.Tests
             var result = ExcelImporter.Import(ExcelTestFactory.CreateExplicitTypeExcel(_tempDir));
             Assert.IsFalse(result.HasBlockingErrors, "显式类型表不应有阻塞错误");
 
-            Assert.AreEqual(IapConsumeType.Consumable, result.Products.Find(p => p.internalId == "a").consumeType, "ConsumeType=1 + IapType=0 → 消耗型");
-            Assert.AreEqual(IapConsumeType.Subscription, result.Products.Find(p => p.internalId == "b").consumeType, "ConsumeType=0 + IapType=2 → 订阅");
-            Assert.AreEqual(IapConsumeType.NonConsumable, result.Products.Find(p => p.internalId == "c").consumeType, "无 IapType + ConsumeType=2 → 不可消耗");
+            Assert.AreEqual(IapConsumeType.Consumable, result.Products.Find(p => p.internalId == "a").consumeType, "ConsumeType=1 + IapType=0 → 可消耗（显式覆盖）");
+            Assert.AreEqual(IapConsumeType.NonConsumable, result.Products.Find(p => p.internalId == "b").consumeType, "ConsumeType=0 + IapType=1 → 不可消耗（显式覆盖）");
+            Assert.AreEqual(IapConsumeType.NonConsumable, result.Products.Find(p => p.internalId == "c").consumeType, "无 IapType + ConsumeType=1 → 不可消耗（直映）");
         }
 
         [Test]

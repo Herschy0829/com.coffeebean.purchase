@@ -12,8 +12,9 @@ namespace CoffeeBean.Purchase.EditorTools
     {
         /// <summary>
         /// 生成示例商品表：
-        /// 行1/2 合法（消耗/非消耗）；行3 缺内部ID（警告跳过）；行4 类型非法（3，报错）；
-        /// 行5 Google ID 重复；行6 ConsumeType=2 → 按映射成为非消耗型（合法）。
+        /// 行1 合法（ConsumeType=0 → 可消耗）；行2 合法（ConsumeType=1 → 不可消耗）；
+        /// 行3 缺内部ID（警告跳过）；行4 类型非法（3，报错）；
+        /// 行5 Google ID 重复；行6 ConsumeType=2 → 订阅暂不支持（报错）。
         /// </summary>
         public static string CreateSampleExcel(string directory)
         {
@@ -31,17 +32,17 @@ namespace CoffeeBean.Purchase.EditorTools
             return path;
         }
 
-        /// <summary>生成含显式商店类型列（IapType_i）的表：IapType 优先于 ConsumeType 映射。</summary>
+        /// <summary>生成含显式商店类型列（IapType_i）的表：IapType 优先于 ConsumeType 的直映结果。</summary>
         public static string CreateExplicitTypeExcel(string directory)
         {
             var rows = new List<IDictionary<string, object>>
             {
-                // ConsumeType=1（默认非消耗）但 IapType=0 → 消耗型（覆盖）
+                // ConsumeType=1（不可消耗）但 IapType=0 → 可消耗（显式覆盖）
                 new Dictionary<string, object> { ["Id_s"] = "a", ["GoogleProductId_s"] = "com.example.a", ["AppleProductId_s"] = "com.example.a.ios", ["ConsumeType_i"] = 1, ["IapType_i"] = 0 },
-                // ConsumeType=0（默认消耗）但 IapType=2 → 订阅（覆盖）
-                new Dictionary<string, object> { ["Id_s"] = "b", ["GoogleProductId_s"] = "com.example.b", ["AppleProductId_s"] = "com.example.b.ios", ["ConsumeType_i"] = 0, ["IapType_i"] = 2 },
-                // 无 IapType（空值）→ 走 ConsumeType 映射：2 → 非消耗
-                new Dictionary<string, object> { ["Id_s"] = "c", ["GoogleProductId_s"] = "com.example.c", ["AppleProductId_s"] = "com.example.c.ios", ["ConsumeType_i"] = 2, ["IapType_i"] = "" },
+                // ConsumeType=0（可消耗）但 IapType=1 → 不可消耗（显式覆盖）
+                new Dictionary<string, object> { ["Id_s"] = "b", ["GoogleProductId_s"] = "com.example.b", ["AppleProductId_s"] = "com.example.b.ios", ["ConsumeType_i"] = 0, ["IapType_i"] = 1 },
+                // 无 IapType（空值）→ 走 ConsumeType 直映：1 → 不可消耗
+                new Dictionary<string, object> { ["Id_s"] = "c", ["GoogleProductId_s"] = "com.example.c", ["AppleProductId_s"] = "com.example.c.ios", ["ConsumeType_i"] = 1, ["IapType_i"] = "" },
             };
             string path = Path.Combine(directory, "explicit_type.xlsx");
             MiniExcel.SaveAs(path, rows, overwriteFile: true);
