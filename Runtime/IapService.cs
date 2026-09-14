@@ -181,6 +181,27 @@ namespace CoffeeBean
             });
         }
 
+        /// <summary>
+        /// 手动确认一笔待处理（Pending）订单 —— 转达给商店适配层。
+        ///
+        /// 什么时候需要：Unity IAP 5 默认启用 <c>ProcessPendingOrdersOnPurchasesFetched</c>
+        /// （本模块 <see cref="Initialize"/> 已打开），待处理订单会在拉取历史购买时**自动确认**，
+        /// 因此多数项目不需要调用本方法。若你的项目需要自己掌控"何时算已发货/已消耗"
+        /// （例如必须等服务器核销或本地发放成功后才确认），可显式调用它。
+        ///
+        /// 说明：本方法此前缺失 —— <see cref="IIapStoreAdapter.ConfirmPendingPurchase"/> 在
+        /// Runtime 里没有任何调用点，业务也无法触达，等于把适配层已有的能力悬空了。
+        /// </summary>
+        public void ConfirmPendingPurchase(string transactionId)
+        {
+            if (string.IsNullOrEmpty(transactionId))
+            {
+                IapLog.Warn("ConfirmPendingPurchase: transactionId 为空，已忽略。");
+                return;
+            }
+            _adapter.ConfirmPendingPurchase(transactionId);
+        }
+
         // ========== 内部：适配层事件 ==========
 
         private void WireAdapterEvents()

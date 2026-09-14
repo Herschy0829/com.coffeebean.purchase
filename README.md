@@ -12,7 +12,7 @@ CoffeeBean 支付模块：基于 Unity IAP 5.4 的内购统一封装。
 ```json
 {
   "dependencies": {
-    "com.coffeebean.purchase": "https://github.com/Herschy0829/com.coffeebean.purchase.git#v0.3.0"
+    "com.coffeebean.purchase": "https://github.com/Herschy0829/com.coffeebean.purchase.git#v0.4.0"
   }
 }
 ```
@@ -37,6 +37,11 @@ Debug.Log($"价格: {p.LocalizedPriceString} 货币: {p.CurrencyCode}");
 // 3. 购买 / 恢复购买
 service.Purchase("gem_100");   // 服务器核销开启时自动走 IPurchaseVerifier，Pending 未确认自动补发
 service.RestorePurchases();
+
+// 4. （可选）手动确认待处理订单
+//    Unity IAP 5 默认会在拉取历史购买时自动确认，多数项目无需调用；
+//    若你要自己掌控"何时算已发货/已消耗"，可在发放成功后显式确认：
+// service.ConfirmPendingPurchase(order.TransactionId);
 ```
 
 > 无服务器时 `serverVerifier` 传 null 且关闭 `IapConfig.serverVerifyEnabled`，购买直接完成。

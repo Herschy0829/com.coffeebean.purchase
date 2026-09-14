@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0] - 2026-09-14
+
+### Added
+- **`IapService.ConfirmPendingPurchase(string transactionId)`** —— 手动确认待处理（Pending）订单。
+  此前 `IIapStoreAdapter.ConfirmPendingPurchase` 在四个适配器（Unity IAP / Disabled / Demo / Fake）里
+  都实现了，但 **Runtime 中没有任何调用点，业务也无从触达** —— 等于把适配层已有的能力悬空了
+  （不是"设计上不需要"，是"忘了接出来"）。
+
+  多数项目**不需要**调用它：Unity IAP 5 默认启用 `ProcessPendingOrdersOnPurchasesFetched`，
+  本模块 `Initialize` 也已打开该开关，待处理订单会在拉取历史购买时自动确认。
+  但需要自行掌控"何时算已发货 / 已消耗"（例如必须等服务器核销或本地发放成功后才确认）的项目，
+  现在可以显式调用。
+
 ## [0.3.0] - 2026-09-14
 
 ### Changed (BREAKING)
