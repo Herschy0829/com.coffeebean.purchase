@@ -214,7 +214,16 @@ namespace CoffeeBean
                 OnInitFailed?.Invoke("Fetch products failed: " + reason);
             };
             _adapter.OnPurchaseConfirmed += OnPurchaseConfirmed;
-            _adapter.OnPurchasePending += order => OnPurchasePending?.Invoke(order);
+            _adapter.OnPurchasePending += order =>
+            {
+                // ⚠️ PENDING 是"本次购买尝试的终态"（钱还没到账，商店仍在处理）——
+                //    必须释放"购买中"状态，否则后续所有购买都会被
+                //    Purchase() 里的 "Another purchase (...) is already in progress" 挡死
+                //    （真机复现：一笔 PENDING 之后再也买不了下一个）。
+                //    订单真正完成时会作为历史购买再次送达（OnPurchasesFetched → Confirmed 补发）。
+                _purchasingInternalId = null;
+                OnPurchasePending?.Invoke(order);
+            };
             _adapter.OnPurchaseFailed += order =>
             {
                 _purchasingInternalId = null;

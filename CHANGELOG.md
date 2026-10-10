@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **装有 Core 时 `CoffeeBean.Purchase.Bridge` 程序集仍然不编译**：该 asmdef 的 `defineConstraints`
+  要求 `COFFEEBEAN_CORE`，但它自身的 `versionDefines` 是空数组 —— 而 Unity 的 versionDefines
+  **按程序集生效**，Runtime asmdef 里那条 `com.coffeebean.core → COFFEEBEAN_CORE` 不会传递过来，
+  于是该程序集被**静默跳过**（不报任何错误）。现象是 `CoffeeBean.Purchase.Bridge.dll` 不产出、
+  `CoffeeBean.Purchase.dll` 里查不到 `PurchaseModule`，README 所述"装有 Core 时注册进服务注册表"失效。
+  已为 Bridge asmdef 补上与 Runtime 相同的 `versionDefines`。
+
 ## [0.4.0] - 2026-09-14
 
 ### Added
